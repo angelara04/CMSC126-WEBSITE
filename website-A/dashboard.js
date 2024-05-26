@@ -1,93 +1,101 @@
 document.addEventListener("DOMContentLoaded", function() {
-    // Function to fetch data from the server and populate the table
-    function fetchData() {
-      fetch('dashboard.php')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
-        .then(data => {
-          const tableBody = document.querySelector('.dashboard-container table tbody');
-          tableBody.innerHTML = ''; // Clear existing table rows
-  
-          // Populate table with fetched data
-          data.forEach(rowData => {
-            const row = document.createElement('tr');
-            // Loop through each key-value pair in rowData
-            Object.entries(rowData).forEach(([key, value]) => {
-              const cell = document.createElement('td');
-              if (key === 'room_Amenities') {
-                // Format room amenities as bullet points
-                const amenitiesList = document.createElement('ul');
-                const amenities = value.split(',');
-                amenities.forEach(amenity => {
-                  const amenityItem = document.createElement('li');
-                  amenityItem.textContent = amenity.trim();
-                  amenitiesList.appendChild(amenityItem);
-                });
-                amenitiesList.style.paddingLeft = '20px'; // Add padding to the left of the bullet list
-                cell.appendChild(amenitiesList);
-              } else {
-                cell.textContent = value;
-              }
-              row.appendChild(cell);
-            });
+  function fetchData() {
+    fetch('dashboard.php')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.text();
+      })
+      .then(data => {
+        document.querySelector('.dashboard-container table tbody').innerHTML = data;
+      })
+      .catch(error => console.error('Error fetching data:', error));
+  }
 
-            // Add delete button to the last cell
-            const deleteButtonCell = document.createElement('td');
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Delete';
-            deleteButton.style.padding = '0px 3px 0 3px'; // Add padding to the delete button
-            deleteButton.style.fontSize = '15px';
-            deleteButton.style.backgroundColor = 'lightcoral'; // Set background color to light red
-            deleteButton.style.borderRadius = '10px'; // Add round border
-            deleteButton.addEventListener('click', () => {
-              deleteRow(rowData.room_id, row); // Pass the row element to deleteRow function
-            });
-            deleteButton.addEventListener('mouseenter', () => {
-              deleteButton.style.backgroundColor = 'red'; // Dark red color on hover
-            });
-            deleteButton.addEventListener('mouseleave', () => {
-              deleteButton.style.backgroundColor = 'lightcoral'; // Restore light red color when not hovered
-            });
-            deleteButtonCell.appendChild(deleteButton);
-            row.appendChild(deleteButtonCell);
-
-            tableBody.appendChild(row);
-          });
-        })
-        .catch(error => console.error('Error fetching data:', error));
-    }
-
-    // Function to delete a row
-    function deleteRow(roomId, row) {
-      fetch(`delete.php?id=${roomId}`, {
-        method: 'DELETE'
+  function deleteRow(roomId, row) {
+    fetch('delete.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `room_id=${roomId}`
       })
       .then(response => {
-        if (response.ok) {
-          // If deletion is successful, remove the row from the table
-          row.remove();
-          showDeleteSuccessMessage(roomId); // Show delete success message
+        if (!response.ok) {
+          throw new Error('Failed to delete row');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.message === 'Row deleted successfully.') {
+          row.remove(); // Remove the row from the DOM
+          showDeleteSuccessMessage(); // Show delete success message
         } else {
-          console.error('Failed to delete row:', roomId);
+          console.error('Failed to delete row:', data.message);
         }
       })
       .catch(error => console.error('Error deleting row:', error));
+  }
+
+  fetchData();
+
+  document.querySelector('.dashboard-container table tbody').addEventListener('click', function(event) {
+    if (event.target.classList.contains('delete')) {
+      event.preventDefault(); // Prevent the default behavior of the anchor tag or button
+      const roomId = event.target.parentNode.querySelector('[name="room_id"]').value;
+      const row = event.target.closest('tr');
+      deleteRow(roomId, row);
     }
 
-    // Function to display delete success message
-    function showDeleteSuccessMessage(roomId) {
-      const messageContainer = document.querySelector('.delete-message');
-      messageContainer.textContent = `Row ${roomId} deleted.`;
-      // Clear the message after 3 seconds
-      setTimeout(() => {
-        messageContainer.textContent = '';
-      }, 3000);
+    if (event.target.classList.contains('edit')) {
+      event.preventDefault();
+      const roomId = event.target.parentNode.querySelector('[name="room_id"]').value;
+      window.location.href = `edit.html?room_id=${roomId}`;
     }
-  
-    // Call fetchData function when the document is fully loaded
-    fetchData();
+  });
+
+  // Function to show delete success message
+  function showDeleteSuccessMessage() {
+    const messageContainer = document.querySelector('.delete-message');
+    messageContainer.textContent = 'Room deleted successfully.';
+    // Clear the message after 3000ms (3 seconds)
+    setTimeout(() => {
+      messageContainer.textContent = '';
+    }, 3000);
+  }
 });
+
+
+function updateRoomAmenities() {
+  // Get all checked checkboxes
+  const checkedBoxes = document.querySelectorAll('input[type="checkbox"]:checked');
+
+  // Convert the NodeList of checked checkboxes to an array
+  // Map over the array and get the value of each checkbox
+  // Join the array into a comma-separated string
+  const amenities = Array.from(checkedBoxes).map(checkbox => checkbox.value).join(',');
+
+  // Send a POST request to update the room amenities
+  fetch('update.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: `room_id=${roomId}&amenities=${amenities}`
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to update room amenities');
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.message === 'Room amenities updated successfully.') {
+      console.log('Room amenities updated successfully');
+    } else {
+      console.error('Failed to update room amenities:', data.message);
+    }
+  })
+  .catch(error => console.error('Error updating room amenities:', error));
+}
